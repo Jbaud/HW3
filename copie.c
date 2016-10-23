@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 		double c =0;
 
 
-                          printf("rank : %d , j=0, j<%d\n",rank,base );
+		printf("rank : %d , j=0, j<%d\n",rank,base );
 		// we use a similar algorithm to the sequential code
 		for(j = 0 ; j < base; j++)
 		{
@@ -219,28 +219,30 @@ int main(int argc, char **argv)
 
 		MPI_Recv(&(local_vector[0]), COLUMN, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
 
-		for (i = 0; i < ROW; ++i)
-		{
-			for ( j = 0; j < COLUMN; ++j)
-			{
-				printf("%.1lf ",A_copie[i][j]); 
-			}
-			printf("\n");
-		}
-
+		/*
+		   for (i = 0; i < ROW; ++i)
+		   {
+		   for ( j = 0; j < COLUMN; ++j)
+		   {
+		   printf("%.1lf ",A_copie[i][j]); 
+		   }
+		   printf("\n");
+		   }
+		 */
 		// algorithm in //
 		double c = 0;
 		int k;
 		printf("i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
 		for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie); j++)
 		{
+
 			for(i = 0; i<ROW; i++)
 			{
 				if(i > j)
 				{
 					c = A_copie[i][j]/A_copie[j][j];
 
-					for(k = 1; k<ROW; k++)
+					for(k = 0; k<ROW; k++)
 					{
 
 						A_copie[i][k] = A_copie[i][k] - c*A_copie[j][k];
