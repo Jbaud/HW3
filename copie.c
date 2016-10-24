@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 	int size;
 	int rank;
 	MPI_Status status;
-             MPI_Datatype columns_type;
+	MPI_Datatype columns_type;
 
 	/*Start MPI*/
 	MPI_Init(&argc, &argv);
@@ -71,9 +71,9 @@ int main(int argc, char **argv)
 	/*Get the total number of processes*/
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-             MPI_Type_vector(ROW, 1, ROW, MPI_DOUBLE,&columns_type);
-             MPI_Type_commit(&columns_type);
-           
+	MPI_Type_vector(ROW, 1, ROW, MPI_DOUBLE,&columns_type);
+	MPI_Type_commit(&columns_type);
+
 
 	if(rank == 0)
 	{
@@ -193,107 +193,149 @@ int main(int argc, char **argv)
 		}
 		// new matrix to store the results from the other processes
 
-		for (int i = base; i < ROW; ++i)
+		k=1;
+		i=base;
+		while (i < ROW)
 		{
-                                for (j = 0; j < ; ++j)
-                                {
-                                    /* code */
-                                }
-                                MPI_Recv(&mat[0][i],1,columns_type,i,i,MPI_COMM_WORLD,&status);
-                                printf("RECEIVED FROM: %d \n",i );
+
+			MPI_Recv(&mat[0][i],1,columns_type,k,i,MPI_COMM_WORLD,&status);
+			printf("RECEIVED FROM: %d \n",i );
+			i++;
+			if (i%base==0)
+			{
+				k++;
+			}
 		}
 
-                            printf("WOUAAAAAAAAAA\n");
-                            for(i = 0; i < ROW; i++)
-                            {
-                                for(j = 0; j < COLUMN; j++) 
-                                {
-                                    printf("%.1lf ",mat[i][j]); 
-                                }
-                                printf("\n");
-                            }
-	}
+		// receiving the vector
 
-	else
-	{
-		int i;
-		int j;
-		double **local_columns;
-		double *local_vector;
-		int base_copie;
-		int my_work;
-
-
-		MPI_Recv(&my_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-		MPI_Recv(&base_copie, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-
-
-		int **toCompute_copie;
-		toCompute_copie = alloc_2d_int(size,base_copie);
-
-		local_vector  = malloc(sizeof(double)*ROW);
-
-
-		MPI_Recv(&(toCompute_copie[0][0]), size*base_copie, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-
-		double **A_copie = alloc_2d_double(ROW,COLUMN);
-
-		MPI_Recv(&(A_copie[0][0]), ROW*COLUMN, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
-
-		MPI_Recv(&(local_vector[0]), COLUMN, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
-
-		// algorithm in //
-		double c = 0;
-		int k;
-		printf("i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
-		for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie); j++)
+		k=1;
+		i=base;
+		while (i < ROW)
 		{
 
-			for(i = 0; i<ROW; i++)
+			MPI_Recv(&vector[i],1,MPI_DOUBLE,k,i,MPI_COMM_WORLD,&status);
+			printf("RECEIVED FROM: %d \n",i );
+			i++;
+			if (i%base==0)
 			{
-				if(i > j)
-				{
-					c = A_copie[i][j]/A_copie[j][j];
+				k++;
+			}
+		}
 
-					for(k = 0; k<ROW; k++)
+		printf("\nUpper triangular matrix: \n");
+		for(i = 0; i < ROW; i++)
+		{
+			for(j = 0; j < COLUMN; j++) 
+			{
+				printf("%.1lf ",mat[i][j]); 
+			}
+			printf("\n");
+		}
+                        
+                  
+		double *solution = malloc(sizeof(double)*ROW);
+
+		solution[ROW] = vector[ROW]/mat[ROW][ROW];
+
+
+                            int sum;
+
+		for(i = ROW-1; i >= 0; i--)
+		{
+			sum = 0;
+
+			for(j=i; j < ROW; j++)
+			{
+				sum=sum+mat[i][j]*solution[j];
+			}
+			solution[i]=(vector[i]-sum)/mat[i][i];
+		}
+
+		printf("\n");
+		for(i = 0; i < ROW; i++)
+		{
+			printf("Solution[%d]: %3.2f\n",i, solution[i]);
+		}
+                         
+	}
+
+		else
+		{
+			int i;
+			int j;
+			double **local_columns;
+			double *local_vector;
+			int base_copie;
+			int my_work;
+
+
+			MPI_Recv(&my_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+			MPI_Recv(&base_copie, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+
+
+			int **toCompute_copie;
+			toCompute_copie = alloc_2d_int(size,base_copie);
+
+			local_vector  = malloc(sizeof(double)*ROW);
+
+
+			MPI_Recv(&(toCompute_copie[0][0]), size*base_copie, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+
+			double **A_copie = alloc_2d_double(ROW,COLUMN);
+
+			MPI_Recv(&(A_copie[0][0]), ROW*COLUMN, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+
+			MPI_Recv(&(local_vector[0]), COLUMN, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+
+			// algorithm in //
+			double c = 0;
+			int k;
+			printf("i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
+			for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie); j++)
+			{
+
+				for(i = 0; i<ROW; i++)
+				{
+					if(i > j)
 					{
+						c = A_copie[i][j]/A_copie[j][j];
 
-						A_copie[i][k] = A_copie[i][k] - c*A_copie[j][k];
+						for(k = 0; k<ROW; k++)
+						{
+
+							A_copie[i][k] = A_copie[i][k] - c*A_copie[j][k];
+						}
+
+						local_vector[i] = local_vector[i] - (c*local_vector[j]);
 					}
-
-					local_vector[i] = local_vector[i] - (c*local_vector[j]);
 				}
 			}
-		}
-		// The computation is finished we send back our response
-		// test output
-		if (rank==1)
-		{
-			printf("this is the output for rank 1:\n");
-			for(i = 0; i < ROW; i++)
+		
+			// now we need the send the COLUMNS back 
+
+			printf("I am gonna send it from :i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
+			for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie ); j++)
 			{
-				for(j = 0; j < COLUMN; j++) 
-				{
-					printf("%.1lf ",A_copie[i][j]); 
-				}
-				printf("\n");
+				printf("increment\n");
+				MPI_Send(&A_copie[0][j], 1, columns_type,0,j,MPI_COMM_WORLD);
 			}
+
+			// now we send  back the vector
+			printf(" worker :%d is sending his vector\n", my_work);
+
+			for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie ); j++)
+			{
+				printf("sending\n");
+				MPI_Send(&local_vector[j], 1, MPI_DOUBLE, 0, j, MPI_COMM_WORLD);
+			}
+
+
 		}
-		// now we need the send the COLUMNS back 
-                          
-                          printf("I am gonna send it from :i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
-		for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie ); j++)
-		{
-                                        printf("increment");
-			MPI_Send(&A_copie[0][j], 1, columns_type,0,j,MPI_COMM_WORLD);
-		}
-                
-                          
+
+
+
+		printf("END OK proc number %d\n",rank);	
+		MPI_Finalize();
+		return 0;
 	}
-
-
-
-printf("END OK\n");	
-MPI_Finalize();
-return 0;
-}
