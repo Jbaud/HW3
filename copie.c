@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 		double c =0;
 
 
-		printf("rank : %d , j=0, j<%d\n",rank,base );
+		//printf("rank : %d , j=0, j<%d\n",rank,base );
 		// we use a similar algorithm to the sequential code
 		for(j = 0 ; j < base; j++)
 		{
@@ -193,11 +193,12 @@ int main(int argc, char **argv)
 		}
 		// new matrix to store the results from the other processes
 
-		int **matB;
-		matB = alloc_2d_int(size,base);
-
-		for (int i = 1; i < size; ++i)
+		for (int i = base; i < ROW; ++i)
 		{
+                                for (j = 0; j < ; ++j)
+                                {
+                                    /* code */
+                                }
                                 MPI_Recv(&mat[0][i],1,columns_type,i,i,MPI_COMM_WORLD,&status);
                                 printf("RECEIVED FROM: %d \n",i );
 		}
@@ -281,8 +282,9 @@ int main(int argc, char **argv)
 		// now we need the send the COLUMNS back 
                           
                           printf("I am gonna send it from :i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
-		for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie); j++)
+		for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie ); j++)
 		{
+                                        printf("increment");
 			MPI_Send(&A_copie[0][j], 1, columns_type,0,j,MPI_COMM_WORLD);
 		}
                 
