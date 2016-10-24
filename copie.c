@@ -60,6 +60,7 @@ int main(int argc, char **argv)
 	int size;
 	int rank;
 	MPI_Status status;
+             MPI_Datatype columns_type;
 
 	/*Start MPI*/
 	MPI_Init(&argc, &argv);
@@ -70,6 +71,10 @@ int main(int argc, char **argv)
 	/*Get the total number of processes*/
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+             MPI_Type_vector(ROW, 1, ROW, MPI_DOUBLE,&columns_type);
+             MPI_Type_commit(&columns_type);
+           
+
 	if(rank == 0)
 	{
 		double **mat;
@@ -77,7 +82,6 @@ int main(int argc, char **argv)
 		int i;
 		int j;
 		int base;
-		int nb_columns;
 
 
 		mat = alloc_2d_double(ROW,COLUMN);
@@ -187,14 +191,32 @@ int main(int argc, char **argv)
 			}
 			printf("\n");
 		}
+		// new matrix to store the results from the other processes
 
+		int **matB;
+		matB = alloc_2d_int(size,base);
+
+		for (int i = 1; i < size; ++i)
+		{
+                                MPI_Recv(&mat[0][i],1,columns_type,i,i,MPI_COMM_WORLD,&status);
+                                printf("RECEIVED FROM: %d \n",i );
+		}
+
+                            printf("WOUAAAAAAAAAA\n");
+                            for(i = 0; i < ROW; i++)
+                            {
+                                for(j = 0; j < COLUMN; j++) 
+                                {
+                                    printf("%.1lf ",mat[i][j]); 
+                                }
+                                printf("\n");
+                            }
 	}
 
 	else
 	{
 		int i;
 		int j;
-		int nb_columns;
 		double **local_columns;
 		double *local_vector;
 		int base_copie;
@@ -219,16 +241,6 @@ int main(int argc, char **argv)
 
 		MPI_Recv(&(local_vector[0]), COLUMN, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
 
-		/*
-		   for (i = 0; i < ROW; ++i)
-		   {
-		   for ( j = 0; j < COLUMN; ++j)
-		   {
-		   printf("%.1lf ",A_copie[i][j]); 
-		   }
-		   printf("\n");
-		   }
-		 */
 		// algorithm in //
 		double c = 0;
 		int k;
@@ -253,6 +265,7 @@ int main(int argc, char **argv)
 			}
 		}
 		// The computation is finished we send back our response
+		// test output
 		if (rank==1)
 		{
 			printf("this is the output for rank 1:\n");
@@ -265,9 +278,20 @@ int main(int argc, char **argv)
 				printf("\n");
 			}
 		}
-
+		// now we need the send the COLUMNS back 
+                          
+                          printf("I am gonna send it from :i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
+		for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie); j++)
+		{
+			MPI_Send(&A_copie[0][j], 1, columns_type,0,j,MPI_COMM_WORLD);
+		}
+                
+                          
 	}
-	printf("END OK\n");	
-	MPI_Finalize();
-	return 0;
+
+
+
+printf("END OK\n");	
+MPI_Finalize();
+return 0;
 }
