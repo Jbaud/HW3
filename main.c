@@ -3,9 +3,10 @@
 #include <mpi.h>
 #include <time.h>
 
-#define ROW 4
-#define COLUMN 4
+#define ROW 8
+#define COLUMN 8
 
+// create contiguous memory for the array sharing
 double **alloc_2d_double(int rows, int cols) {
 	double *data = (double *)malloc(rows*cols*sizeof(double));
 	double **array= (double **)malloc(rows*sizeof(double*));
@@ -24,44 +25,15 @@ int **alloc_2d_int(int rows, int cols) {
 	return array;
 }
 
-void printArray_int(int rows, int cols, int array[rows][cols]){
-
-	int i,j;
-
-	for(i = 0; i < rows; i++)
-	{
-		for(j = 0; j < cols; j++) 
-		{
-			array[i][j]=0;
-			printf("%d ", array[i][j]); 
-		}
-		printf("\n");
-	}
-}
-
-void printArray_double(int rows, int cols, double array[rows][cols]){
-
-	int i,j;
-
-	for(i = 0; i < rows; i++)
-	{
-		for(j = 0; j < cols; j++) 
-		{
-			array[i][j]=0;
-			printf("%lf ", array[i][j]); 
-		}
-		printf("\n");
-	}
-}
-
 int main(int argc, char **argv)
 {
 
 	int size;
 	int rank;
 	MPI_Status status;
+	// this will be used to send columns by columns
 	MPI_Datatype columns_type;
-
+             double starttime, endtime; 
 	/*Start MPI*/
 	MPI_Init(&argc, &argv);
 
@@ -71,6 +43,8 @@ int main(int argc, char **argv)
 	/*Get the total number of processes*/
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+
+	//vector will allow us to send  columns when the processes are finished
 	MPI_Type_vector(ROW, 1, ROW, MPI_DOUBLE,&columns_type);
 	MPI_Type_commit(&columns_type);
 
@@ -86,6 +60,7 @@ int main(int argc, char **argv)
 
 		mat = alloc_2d_double(ROW,COLUMN);
 		vector = malloc(sizeof(double)*ROW);
+
 		//random vector to make input easier
 		srand((time(NULL)));
 
@@ -96,7 +71,7 @@ int main(int argc, char **argv)
 
 
 		FILE *file;
-		file=fopen("test4_4.txt", "r");
+		file=fopen("test8_8.txt", "r");
 
 		for(i = 0; i < ROW; i++)
 		{
@@ -114,7 +89,7 @@ int main(int argc, char **argv)
 
 
 		// sending infos to other processes
-
+		// we assume even, to be  improved...
 		base= ROW/size;
 		int k =  0;
 
@@ -141,6 +116,16 @@ int main(int argc, char **argv)
 			printf("\n");
 		}
 
+                            // beginning of //
+		/*
+		We are going to sen to all the other processes 
+			The matrix 
+			Their rank
+			The base ( <---->)
+		*/
+
+                           starttime = MPI_Wtime(); 
+
 		for (i = 1; i < size; ++i)
 		{
 			MPI_Send(&i, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
@@ -160,9 +145,12 @@ int main(int argc, char **argv)
 
 		double c =0;
 
-
 		//printf("rank : %d , j=0, j<%d\n",rank,base );
+
 		// we use a similar algorithm to the sequential code
+		/*
+		Since process 0 -> j =0 always
+		*/
 		for(j = 0 ; j < base; j++)
 		{
 			for(i = 0; i<ROW; i++)
@@ -191,15 +179,17 @@ int main(int argc, char **argv)
 			}
 			printf("\n");
 		}
-		// new matrix to store the results from the other processes
-
+	
+		// We are waiiting for the other jobs to finish
+		// This allow to ordinate the matrix in the right order of i 
+		// This is done with the modulo 
 		k=1;
 		i=base;
 		while (i < ROW)
 		{
 
 			MPI_Recv(&mat[0][i],1,columns_type,k,i,MPI_COMM_WORLD,&status);
-			printf("RECEIVED FROM: %d \n",i );
+			printf("RECEIVED FROM MAT: %d \n",i );
 			i++;
 			if (i%base==0)
 			{
@@ -208,14 +198,14 @@ int main(int argc, char **argv)
 		}
 
 		// receiving the vector
-
+		//same structure
 		k=1;
 		i=base;
 		while (i < ROW)
 		{
 
 			MPI_Recv(&vector[i],1,MPI_DOUBLE,k,i,MPI_COMM_WORLD,&status);
-			printf("RECEIVED FROM: %d \n",i );
+			printf("RECEIVED FROM VECTOR %d \n",i );
 			i++;
 			if (i%base==0)
 			{
@@ -233,15 +223,29 @@ int main(int argc, char **argv)
 			printf("\n");
 		}
                         
+                            printf("---------VECTOR-------\n");
+                            for (int i = 0; i < ROW; ++i)
+                            {
+                                printf("%lf ",vector[i]);
+                            }
+                            printf("\n");
                   
+
 		double *solution = malloc(sizeof(double)*ROW);
 
-		solution[ROW] = vector[ROW]/mat[ROW][ROW];
+                            if(solution == NULL)
+                            {
+                                printf("Error: unable to allocate memory in process 0 for solution storage!\n");
+                                MPI_Finalize();
+                                exit(EXIT_FAILURE);
+                            }
+                            
+		solution[ROW] = vector[ROW]-1/mat[ROW-1][ROW-1];
+                            
 
-
-                            int sum;
-
-		for(i = ROW-1; i >= 0; i--)
+                            double sum;
+                            int x=0;
+		for(i = (ROW-1); i >= 0; i--)
 		{
 			sum = 0;
 
@@ -249,15 +253,23 @@ int main(int argc, char **argv)
 			{
 				sum=sum+mat[i][j]*solution[j];
 			}
-			solution[i]=(vector[i]-sum)/mat[i][i];
-		}
+                                        if (mat[i][i] != 0)
+                                        {  
+                                           solution[i]=(vector[i]-sum)/mat[i][i];
+                                        }
 
-		printf("\n");
+                          // end of algorithm, the rest is just printing              
+                         endtime   = MPI_Wtime();          
+
+                            			
+		}
+		printf("%d\n",x);
 		for(i = 0; i < ROW; i++)
 		{
 			printf("Solution[%d]: %3.2f\n",i, solution[i]);
 		}
-                         
+                        
+                           printf("That took %f seconds\n",endtime-starttime); 
 	}
 
 		else
@@ -291,7 +303,9 @@ int main(int argc, char **argv)
 			// algorithm in //
 			double c = 0;
 			int k;
-			printf("i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
+			//printf("i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
+
+			// the range to me make sure that each process only compute the assignated  columns
 			for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie); j++)
 			{
 
@@ -314,7 +328,7 @@ int main(int argc, char **argv)
 		
 			// now we need the send the COLUMNS back 
 
-			printf("I am gonna send it from :i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
+			//printf("I am gonna send it from :i : %d , my_work*base_copie=%d, (my_work*base_copie)+base_copie=%d\n",my_work,my_work*base_copie,(my_work*base_copie)+base_copie );
 			for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie ); j++)
 			{
 				printf("increment\n");
@@ -322,8 +336,8 @@ int main(int argc, char **argv)
 			}
 
 			// now we send  back the vector
-			printf(" worker :%d is sending his vector\n", my_work);
-
+			//printf(" worker :%d is sending his vector\n", my_work);
+                                       
 			for(j = my_work*base_copie ; j < ((my_work*base_copie)+base_copie ); j++)
 			{
 				printf("sending\n");
